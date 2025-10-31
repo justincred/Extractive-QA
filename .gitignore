@@ -1,1 +1,5 @@
-.venv
+my_env
+logs/
+data/
+models/
+
