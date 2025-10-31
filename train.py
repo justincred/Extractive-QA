@@ -9,7 +9,7 @@ from transformers import (
 from evaluate import load as load_metric
 import torch
 print("Using device:", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="../models/deberta_squad"):
+def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="models/deberta_squad"):
     tokenized = load_from_disk(f"{data_dir}/tokenized_squad")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForQuestionAnswering.from_pretrained(model_name)
