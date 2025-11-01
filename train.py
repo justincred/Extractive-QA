@@ -19,15 +19,11 @@ def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="m
         eval_strategy="epoch",
         save_strategy="epoch",
         learning_rate=3e-5,
-        per_device_train_batch_size=8,
+        per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
         num_train_epochs=3,
         weight_decay=0.01,
-        fp16=True,
-        save_total_limit=2,
         load_best_model_at_end=True,
-        logging_dir="../logs",
-        logging_steps=100,
     )
 
     trainer = Trainer(
@@ -41,7 +37,7 @@ def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="m
     trainer.train()
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
-    print(" Model saved to:", output_dir)
+    print("Model saved to:", output_dir)
 
 if __name__ == "__main__":
     train()

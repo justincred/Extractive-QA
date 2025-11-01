@@ -5,5 +5,8 @@
 #SBATCH -J deberta_train
 #SBATCH -o logs/out.out
 nvidia-smi
-python eval.py
+# srun python preprocess.py
+srun python train.py
+srun python eval.py
+srun python evaluate-v2.0.py dev-v1.1.json predictions.json
 
