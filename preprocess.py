@@ -4,10 +4,9 @@ from transformers import AutoTokenizer
 # ------------- Load raw (nested) SQuAD JSON -------------
 dataset = load_dataset(
     "json",
-    data_files={"train": "train-v1.1.json", "validation": "dev-v1.1.json"},
+    data_files={"train": "train-v1.1.json", "test": "dev-v1.1.json"},
     field="data"
 )
-
 # ------------- Flatten to (id, context, question, answers) -------------
 def flatten_squad(batch):
     # batch["paragraphs"] is a list whose elements are *lists of paragraph dicts*
@@ -41,12 +40,13 @@ def flatten_squad(batch):
     return out
 
 # Remove the original nested columns ('title', 'paragraphs') after flattening
-dataset = dataset.map(
-    flatten_squad,
-    batched=True,
-    remove_columns=dataset["train"].column_names
-)
+train_flat = dataset["train"].map(flatten_squad, remove_columns=["title", "paragraphs"], batched=True)
+test_flat  = dataset["test"].map(flatten_squad, remove_columns=["title", "paragraphs"], batched=True)
 
+train_val = train_flat.train_test_split(test_size=0.1, seed=42)
+train_dataset = train_val["train"]        # 90% for training
+internal_val_dataset = train_val["test"]  # 10% for validation during training
+test_flat.save_to_disk("data/flattened_squad_test")
 # ------------- (Optional) sanity check a sample -------------
 # print("SAMPLE:", dataset["train"][0])
 
@@ -121,14 +121,6 @@ def preprocess(batch):
     encoded["start_positions"] = start_positions
     encoded["end_positions"]   = end_positions
     return encoded
-
-# Important: remove the flattened text columns here
-tokenized = dataset.map(
-    preprocess,
-    batched=True,
-    remove_columns=["id", "context", "question", "answers"]
-)
-
-tokenized.save_to_disk("data/tokenized_squad")
-print("Tokenized dataset saved to data/tokenized_squad")
+tokenized_train = train_dataset.map(preprocess, batched=True, remove_columns=["id", "context", "question", "answers"])
+tokenized_val   = internal_val_dataset.map(preprocess, batched=True, remove_columns=["id", "context", "question", "answers"])
 
