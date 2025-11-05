@@ -6,11 +6,15 @@ from transformers import (
     TrainingArguments,
     Trainer,
 )
+import argparse
 from evaluate import load as load_metric
 import torch
 print("Using device:", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="models/deberta_squad"):
-    tokenized = load_from_disk(f"{data_dir}/tokenized_squad")
+def train(lr=3e-5,epochs=3,batch_size=8,weight_decay=0.01,model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="models/deberta_squad"):
+
+    tokenized_train = load_from_disk(f"{data_dir}/tokenized_squad_train")
+    tokenized_val   = load_from_disk(f"{data_dir}/tokenized_squad_internal_val")
+
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForQuestionAnswering.from_pretrained(model_name)
 
@@ -33,8 +37,8 @@ def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="m
     trainer = Trainer(
         model=model,
         args=args,
-        train_dataset=tokenized["train"],
-        eval_dataset=tokenized["validation"],
+        train_dataset=tokenized_train,
+        eval_dataset=tokenized_val,
         tokenizer=tokenizer,
     )
 
@@ -44,5 +48,16 @@ def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="m
     print(" Model saved to:", output_dir)
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--epochs", type=int, default=3)
+    parser.add_argument("--batch_size", type=int, default=8)
+    parser.add_argument("--learning_rate", type=float, default=2e-5)
+    parser.add_argument("--weight_decay", type=float, default=0.01)
+    args = parser.parse_args()    
+     train(
+        epochs=args.epochs,
+        batch_size=args.batch_size,
+        lr=args.learning_rate,
+        weight_decay=args.weight_decay,
+    )
 
