@@ -9,13 +9,13 @@ model = AutoModelForQuestionAnswering.from_pretrained(model_path)
 
 qa_pipeline = pipeline("question-answering", model=model, tokenizer=tokenizer, device=0)
 
-# ===== 2. Load validation data =====
-dataset = load_dataset("json", data_files={"validation": "dev-v1.1.json"}, field="data")
+# ===== 2. Load test data =====
+dataset = load_dataset("json", data_files={"test": "dev-v1.1.json"}, field="data")
 
 # ===== 3. Generate predictions =====
 predictions = {}
 
-for article in dataset["validation"]:
+for article in dataset["test"]:
     for paragraph in article["paragraphs"]:
         context = paragraph["context"]
         for qa in paragraph["qas"]:
