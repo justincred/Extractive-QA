@@ -10,7 +10,7 @@ from evaluate import load as load_metric
 import torch
 print("Using device:", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="models/deberta_squad"):
-    tokenized = load_from_disk(f"{data_dir}/tokenized_squad")
+    tokenized = load_from_disk(f"{data_dir}/tokenized_squad_2")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForQuestionAnswering.from_pretrained(model_name)
 
@@ -18,12 +18,15 @@ def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="m
         output_dir=output_dir,
         eval_strategy="epoch",
         save_strategy="epoch",
+        logging_steps=500,
         learning_rate=3e-5,
         per_device_train_batch_size=16,
         per_device_eval_batch_size=16,
         num_train_epochs=3,
         weight_decay=0.01,
+        warmup_ratio=0.1,
         load_best_model_at_end=True,
+        fp16=True
     )
 
     trainer = Trainer(
