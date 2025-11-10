@@ -4,10 +4,9 @@ from transformers import AutoTokenizer
 # ------------- Load raw (nested) SQuAD JSON -------------
 dataset = load_dataset(
     "json",
-    data_files={"train": "train-v1.1.json", "validation": "dev-v1.1.json"},
+    data_files={"train": "train-v1.1.json", "test": "dev-v1.1.json"},
     field="data"
 )
-
 # ------------- Flatten to (id, context, question, answers) -------------
 def flatten_squad(batch):
     # batch["paragraphs"] is a list whose elements are *lists of paragraph dicts*
@@ -41,12 +40,13 @@ def flatten_squad(batch):
     return out
 
 # Remove the original nested columns ('title', 'paragraphs') after flattening
-dataset = dataset.map(
-    flatten_squad,
-    batched=True,
-    remove_columns=dataset["train"].column_names
-)
+train_flat = dataset["train"].map(flatten_squad, remove_columns=["title", "paragraphs"], batched=True)
+test_flat  = dataset["test"].map(flatten_squad, remove_columns=["title", "paragraphs"], batched=True)
 
+train_val = train_flat.train_test_split(test_size=0.1, seed=42)
+train_dataset = train_val["train"]        # 90% for training
+internal_val_dataset = train_val["test"]  # 10% for validation during training
+test_flat.save_to_disk("data/flattened_squad_test")
 # ------------- (Optional) sanity check a sample -------------
 # print("SAMPLE:", dataset["train"][0])
 
@@ -71,61 +71,57 @@ def preprocess(batch):
         padding="max_length",
     )
 
-    sample_map = encoded.pop("overflow_to_sample_mapping")
+    sample_map     = encoded.pop("overflow_to_sample_mapping")
     offset_mapping = encoded.pop("offset_mapping")
-    answers = batch["answers"]
+
     start_positions = []
-    end_positions = []
+    end_positions   = []
 
     for i, offsets in enumerate(offset_mapping):
-        sample_idx = sample_map[i]
-        ans = answers[sample_idx]
-        input_ids = encoded["input_ids"][i]
-        cls_index = input_ids.index(tokenizer.cls_token_id)
+        input_ids    = encoded["input_ids"][i]
+        cls_index    = input_ids.index(tokenizer.cls_token_id)
         sequence_ids = encoded.sequence_ids(i)
+        sample_idx   = sample_map[i]
+
+        # answers is dict-of-lists by construction
+        ans = batch["answers"][sample_idx]
+        if len(ans["answer_start"]) == 0:
+            start_positions.append(cls_index)
+            end_positions.append(cls_index)
+            continue
 
         start_char = ans["answer_start"][0]
-        end_char = start_char + len(ans["text"][0])
+        end_char   = start_char + len(ans["text"][0])
 
         # Find the start and end of the context in the tokenized sequence
         # sequence_ids == 1 marks context tokens (0=question, 1=context, None=special)
         # Find first/last index where sequence_ids == 1
-        token_idx = 0
-        while sequence_ids[token_idx] != 1:
-            token_idx += 1
-        token_start = token_idx
-        while sequence_ids[token_idx] == 1:
-            token_idx += 1
-        token_end = token_idx - 1
+        token_start = 0
+        while sequence_ids[token_start] != 1:
+            token_start += 1
+        token_end = len(input_ids) - 1
+        while sequence_ids[token_end] != 1:
+            token_end -= 1
 
         # If answer is not fully inside this span, force to CLS
-        if (offsets[token_start][0] > start_char or offsets[token_end][1] < end_char):
+        if not (offsets[token_start][0] <= start_char and offsets[token_end][1] >= end_char):
             start_positions.append(cls_index)
             end_positions.append(cls_index)
         else:
-            token_idx = token_start
             # Move token_start to the right until we cross start_char
-            while token_idx < token_end and offsets[token_idx][0] <= start_char:
-                token_idx += 1
-            start_positions.append(token_index - 1)
+            while token_start < len(offsets) and offsets[token_start][0] <= start_char:
+                token_start += 1
+            start_positions.append(token_start - 1)
 
-            token_idx = token_end
             # Move token_end to the left until we cross end_char
-            while offsets[token_end][1] >= end_char and token_idx >= token_end:
-                token_idx -= 1
-            end_positions.append(token_idx + 1)
+            while offsets[token_end][1] >= end_char:
+                token_end -= 1
+            end_positions.append(token_end + 1)
 
     encoded["start_positions"] = start_positions
-    encoded["end_positions"] = end_positions
+    encoded["end_positions"]   = end_positions
     return encoded
-
-# Important: remove the flattened text columns here
-tokenized = dataset.map(
-    preprocess,
-    batched=True,
-    remove_columns=["id", "context", "question", "answers"]
-)
-
-tokenized.save_to_disk("data/tokenized_squad_2")
-print("Tokenized dataset saved to data/tokenized_squad_2")
-
+tokenized_train = train_dataset.map(preprocess, batched=True, remove_columns=["id", "context", "question", "answers"])
+tokenized_val   = internal_val_dataset.map(preprocess, batched=True, remove_columns=["id", "context", "question", "answers"])
+tokenized_train.save_to_disk("data/tokenized_squad_train")
+tokenized_val.save_to_disk("data/tokenized_squad_internal_val")
