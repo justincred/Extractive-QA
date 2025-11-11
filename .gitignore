@@ -2,4 +2,4 @@ my_env
 logs/
 data/
 models/
-
+predictions.json

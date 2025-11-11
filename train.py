@@ -9,9 +9,10 @@ from transformers import (
 import argparse
 from evaluate import load as load_metric
 import torch
-print("Using device:", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
-def train(lr=3e-5,epochs=3,batch_size=8,weight_decay=0.01,model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="models/deberta_squad"):
 
+print("Using device:", torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+def train(model_name="microsoft/deberta-v3-base", data_dir="data", output_dir="models/deberta_squad", lr=3e-5, epochs=3, batch_size=8, weight_decay=0.01):
     tokenized_train = load_from_disk(f"{data_dir}/tokenized_squad_train")
     tokenized_val   = load_from_disk(f"{data_dir}/tokenized_squad_internal_val")
 
@@ -22,16 +23,15 @@ def train(lr=3e-5,epochs=3,batch_size=8,weight_decay=0.01,model_name="microsoft/
         output_dir=output_dir,
         eval_strategy="epoch",
         save_strategy="epoch",
-        learning_rate=3e-5,
-        per_device_train_batch_size=8,
+        logging_steps=500,
+        learning_rate=lr,
+        per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=16,
-        num_train_epochs=3,
-        weight_decay=0.01,
-        fp16=True,
-        save_total_limit=2,
+        num_train_epochs=epochs,
+        weight_decay=weight_decay,
+        warmup_ratio=0.1,
         load_best_model_at_end=True,
-        logging_dir="../logs",
-        logging_steps=100,
+        fp16=True
     )
 
     trainer = Trainer(
@@ -45,7 +45,7 @@ def train(lr=3e-5,epochs=3,batch_size=8,weight_decay=0.01,model_name="microsoft/
     trainer.train()
     model.save_pretrained(output_dir)
     tokenizer.save_pretrained(output_dir)
-    print(" Model saved to:", output_dir)
+    print("Model saved to:", output_dir)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -54,7 +54,8 @@ if __name__ == "__main__":
     parser.add_argument("--learning_rate", type=float, default=2e-5)
     parser.add_argument("--weight_decay", type=float, default=0.01)
     args = parser.parse_args()    
-     train(
+    
+    train(
         epochs=args.epochs,
         batch_size=args.batch_size,
         lr=args.learning_rate,

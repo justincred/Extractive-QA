@@ -125,4 +125,3 @@ tokenized_train = train_dataset.map(preprocess, batched=True, remove_columns=["i
 tokenized_val   = internal_val_dataset.map(preprocess, batched=True, remove_columns=["id", "context", "question", "answers"])
 tokenized_train.save_to_disk("data/tokenized_squad_train")
 tokenized_val.save_to_disk("data/tokenized_squad_internal_val")
-
